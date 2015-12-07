@@ -1,7 +1,9 @@
 # CMPE272-Extra-Assignment-
 
 							READ ME
-The instructions for running the Notebook is in the below But the most important thing is:
+The instructions for running the Notebook is in the below.
+
+But the most important thing is:
 Please use the cleaneddata.csv as the data source for the analysis.
 
 The NoteBook is NASASpark.ipynb.json
