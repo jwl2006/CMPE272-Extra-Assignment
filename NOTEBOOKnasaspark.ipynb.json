@@ -1,0 +1,573 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Spark analysis of US NASA Facilities Data\n",
+    "               Hao Wang 010702263 CMPE272\n",
+    "In this analysis, we retrieved data from the official NASA government website, and use spark to do the big data analysis. Since the raw data contains two lines in each entry, we first pre-processed the raw data and combine the data belong to each entry into one line for easier spark analysis. We queried the data, and applied **Map-Reduce** to analyze the total number of **Active** plants **in each State**.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Data set\n",
+    "\n",
+    "We will use **Apache Spark** to analyze raw NASA data from NASA website. More specifically we use the up-to date raw of 2015.\n",
+    "\n",
+    "The data can be accessed by the following instructions.\n",
+    "\n",
+    "1. Visit the NASA facilities site at https://data.nasa.gov/view/scmi-np9r.\n",
+    "2. Click the Download Menu on the top left of the page.\n",
+    "3. Download the NASA_Facilities.csv data, and save it on your desktop.\n",
+    "\n",
+    "Due to the special format of the raw data, we have to pre-process it before we load it for Spark analysis. We wrote a python script to process the data.\n",
+    "\n",
+    "\n",
+    "The preprocessed data has been uploaded into the data source with the name **change.csv**."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Create a new code cell and paste in the credentials for 2015.csv by using the **Insert to code** function."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "\n",
+    "The format of the raw data in the base file consists of the following:\n",
+    "\n",
+    "<table border=\"1\" style=\"width:90%\">\n",
+    "  <tr>\n",
+    "    <th>Center</th><th>Center Search Status</th><th>Facility</th><th>FacilityURL</th><th>Occupied</th><th>Status,URL Link</th><th>Record Date</th><th>Last Update</th><th>Country</th><th>Contact</th><th>Phone</th><th>Location</th><th>City</th><th>State</th><th>Zipcode</th>\n",
+    "  </tr>\n",
+    "  <tr>\n",
+    "    <td>Ames Research Center</td><td>Public</td><td>046 - AIRCRAFT MAINTENANCE HANGAR 2</td><td></td><td>01/01/1943 12:00:00 AM</td><td>Active</td><td></td><td>10/05/2011 12:00:00 AM</td><td>US</td><td>Rocci Caringello</td><td>650 603-9506</td><td>94035(37.41412, -122.052585)</td><td>Moffett Field</td><td>CA</td><td>94035</td>\n",
+    "  </tr>\n",
+    "</table>\n",
+    "<p>\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Load Data\n",
+    "Befor we can access the stored file in Object Storage using the [`SparkContext`](https://spark.apache.org/docs/1.3.1/api/python/pyspark.html#pyspark.SparkContext), we have to set the Hadoop configuration. This can be done with the following configuration function:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 162,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "def set_hadoop_config(credentials):\n",
+    "    prefix = \"fs.swift.service.\" + credentials['name'] \n",
+    "    hconf = sc._jsc.hadoopConfiguration()\n",
+    "    hconf.set(prefix + \".auth.url\", credentials['auth_url']+'/v2.0/tokens')\n",
+    "    hconf.set(prefix + \".auth.endpoint.prefix\", \"endpoints\")\n",
+    "    hconf.set(prefix + \".tenant\", credentials['project_id'])\n",
+    "    hconf.set(prefix + \".username\", credentials['user_id'])\n",
+    "    hconf.set(prefix + \".password\", credentials['password'])\n",
+    "    hconf.setInt(prefix + \".http.port\", 8080)\n",
+    "    hconf.set(prefix + \".region\", credentials['region'])\n",
+    "    hconf.setBoolean(prefix + \".public\", True)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "For convenience you should copy the provided credentials into a dictionary for further usage. In the code cell below, we have prepared a dictionary with the corresponding entries we need to access Object Storage. Just paste the corresponding credential parts and run the cell. For the key \"name\" you can input any string as value, e.g. \"keystone\"."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 163,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "credentials = {}\n",
+    "credentials['name'] = 'keystone'\n",
+    "credentials['auth_url'] = 'https://identity.open.softlayer.com'\n",
+    "credentials['project_id'] = '807bf9c1e1b2481aa949dfa0977763d5'\n",
+    "credentials['region'] = 'dallas'\n",
+    "credentials['user_id'] = 'fd22d60ef0fc46b58c17c3bb5071cc80'\n",
+    "credentials['password'] = 'c]sAUGo6.Dv#pKr4'"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Now you can set the Hadoop configuration by running following code:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 164,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "set_hadoop_config(credentials)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 165,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "ename": "SyntaxError",
+     "evalue": "invalid syntax (<ipython-input-165-cd0c29463fbf>, line 1)",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[1;36m  File \u001b[1;32m\"<ipython-input-165-cd0c29463fbf>\"\u001b[1;36m, line \u001b[1;32m1\u001b[0m\n\u001b[1;33m    After set up the config, we can access our raw data, and set up an RDD using the spark\u001b[0m\n\u001b[1;37m            ^\u001b[0m\n\u001b[1;31mSyntaxError\u001b[0m\u001b[1;31m:\u001b[0m invalid syntax\n"
+     ]
+    }
+   ],
+   "source": [
+    "After set up the config, we can access our raw data, and set up an RDD using the spark\n",
+    "context library function showing below:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "nasadata = sc.textFile(\"swift://notebooks.keystone/change.csv\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "The `RDD` we created is a collection of strings corresponding to the individual lines in the raw data file. It is also important to remember that the `RDD` is defined but not instantiated yet. We can apply an action like `count` to the `RDD` which will effectively force its instantiation."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "print \"Total records in the change.csv dataset:\", nasadata.count()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "We can apply another action to the same `RDD` to take a look at the whole dataset, which give you a flavor of how the data looks like."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "print \"The first row in the change.csv dataset:\", nasadata.collect()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Parse Data"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "collapsed": true
+   },
+   "source": [
+    "To really begin to work with the data, we need to parse it into columns. We can do so by mapping each line in the `RDD` to a function that splits the line by commas."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "nasaParse = nasadata.map(lambda line : line.split(\",\"))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "The lambda notation in Python is used to create anonymous functions (i.e functions which are not bound to a name). This concept is used above for passing a function as a parameter to the `map` function. The anonymous function receives each line from the `RDD` \"weather\" and splits it at the comma boundaries. As a result, the new `RDD` \"weatherParse\" is defined as a list of lists of strings. Each list in \"weatherParse\" corresponds to a line in \"weather\" and the strings in each list are the individual elements of the row.\n",
+    "\n",
+    "Let us take a quick look at the first list."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "nasaParse.first()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "nasaParse.first()[-2]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Filter Data\n",
+    "### Get all the facilities that is Active "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Let's now reduce the dataset by selecting only rows with the activity state of \"Active\". "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "nasaActive = nasaParse.filter(lambda x: x[5] == \"Active\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Calculate the number of Active facilities in each state"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "The `RDD` \"nasaActive\" contains all the facilities that is active, now we need to summarize the total number of active facilities in each state."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Our next goal is to transform (map) this dataset into a new one where each row (data pair) is augmented with the value `1`. Table 1 below depicts this new structure."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Table 1.\n",
+    "\n",
+    "<table border=\"1\" style=\"width:80%\">\n",
+    "  <tr>\n",
+    "    <th>Key</th><th>Value</th>\n",
+    "  </tr>\n",
+    "  <tr>\n",
+    "    <td>State 1</td><td>(Value 1,1)</td>\n",
+    "  </tr>\n",
+    "  <tr>\n",
+    "    <td>State 2</td><td>(Value 2,1)</td>\n",
+    "  </tr>\n",
+    "    <tr>\n",
+    "    <td>State 3</td><td>(Value 3,1)</td>\n",
+    "  </tr>\n",
+    "  <tr>\n",
+    "    <td>...</td><td>...</td>\n",
+    "  </tr>\n",
+    "</table>\n",
+    "<p>"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "The reason for this mapping is to subsequently be able to reduce the table into the form represented by Table 3."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Table 3.\n",
+    "\n",
+    "<table border=\"1\" style=\"width:80%\">\n",
+    "  <tr>\n",
+    "    <th>Key</th><th>Value</th>\n",
+    "  </tr>\n",
+    "  <tr>\n",
+    "    <td>State 1</td><td>(Value 1,2)</td>\n",
+    "  </tr>\n",
+    "  <tr>\n",
+    "    <td>State 2</td><td>(Value 2,2)</td>\n",
+    "  </tr>\n",
+    "    <tr>\n",
+    "    <td>State 3</td><td>(Value 5,1)</td>\n",
+    "  </tr>\n",
+    "  <tr>\n",
+    "    <td>...</td><td>...</td>\n",
+    "  </tr>\n",
+    "</table>\n",
+    "<p>"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "# x[0] is State\n",
+    "nasaActiveCountByState = nasaActive.map(lambda x : (x[-2],1))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "The same Python lambda function notation is used to pass a function into the mapping function which transforms \"nasaActive\" into the new `RDD`. \n",
+    "\n",
+    "We can again look at the first 10 elements of our new `RDD` to confirm that our mapping produced the expected result."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false,
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "nasaActiveCountByState.take(10)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Sum up the active facilities in each state by ***reduce***\n",
+    "\n",
+    "Now we can sum (reduce) the total facilities number for every stats. We use the `reduceByKey` for this purpose."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "from operator import add\n",
+    "nasaActiveByState = nasaActiveCountByState.reduceByKey(add)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Now we look at the ***calculated results***, which summarized the amount of Active facilites in each State."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "nasaActiveByState.first()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "nasaActiveByState.collect()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "nasaActiveByState.first()[0]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false,
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "for pair in nasaActiveByState.top(10):\n",
+    "    print \"Stats %s have active NASA plant of %d\" % (pair[0],pair[1])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Next, We save the State and active facilities numbers in different lists"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 166,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[u'VA', u'TX', u'OH', u'MS', u'MD', u'LA', u'FL', u'DC', u'CA', u'AL'] [57, 2, 21, 20, 18, 16, 4, 21, 49, 104]\n"
+     ]
+    }
+   ],
+   "source": [
+    "statesTop10=[]\n",
+    "activeNASAPlantTop10=[]\n",
+    "for pair in nasaActiveByState.map(lambda (x,y) : (x,y)).top(10):\n",
+    "    statesTop10.append(pair[0])\n",
+    "    activeNASAPlantTop10.append(pair[1])\n",
+    "print statesTop10,activeNASAPlantTop10\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Visualize the calculated results\n",
+    "\n",
+    "I ploted the number of Active NASA Plant facilities in each States with the interactive notebooks by python plot tools. So now we got the answer of how many NASA Facilities are running in each States, and the result is vividly displayed."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 175,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\nrfoEzgLOknR0RJzdxZjMzKxL2jlPICSNrz2RNF7Sx0qMyczMuqSdJHBURCypPcmPP1xeSGZm1i3t\nJIE1JC1fTtIoYM3yQjIzs27p934CwE+Bi/PdxUTqML661KjMzKwr2kkCnyY1/3w0P5+Hby9pZjYi\ntHM/gZci4tyIODgiDiZd+fOr5YdmZmZla6cmgKTdgJnAIaQTuS4rMSYzM+uSVmcMb0fa8c8g3Ujm\nEmCNiOjpTmhmZla2VjWB3wM3AO+OiHsBJB3flajMzKwrWvUJHES6neR1ks6TtDcrbgBjZmYjQNMk\nEBFXRMR0YHugDziOdDG5cyXt06X4zMysRO2MDno6Ir4XEfsDWwK34/v/mpmNCO2cMbxcRDwREd+I\niL3KCsjMzLpnlZKAmZmNLE4CZmYV5iRgZlZhTgJmZhXmJGBmVmFOAmZmFeYkYGZWYU4CZmYV5iRg\nZlZhTgJmZhXmJGBmVmFOAmZmFeYkYGZWYU4CZmYV1vUkIGlLSddJulPSHZKOydM3kjRP0j2S5koa\n1+3YzMyqZihqAi8Ax0fEjsDuwMclvZp0o5p5ETEVuAbfuMbMrHRdTwIR8XBE/CY/fpp0Q/tJwAHA\n7LzYbOA93Y7NzKxqRg9l4ZImA7sCNwMTImJxnrUYmDBEYa0WJHVkPRHRkfWYFXn7XH0MWRKQNAa4\nDDg2IpYWN5qICEn+9vvRS++Qvt6sFW+fq4chSQKS1iQlgAsj4oo8ebGkiRHxsKTNgEcavfY6rlv+\neDKTmcKU0uO15nzEZzb89PX10dfX19ayXU8CSnuN84EFEXFWYdaVwCzgC/n/FQ1ezp7sWXqMtmp8\nxGc2vPT09NDT07P8+amnntp02aGoCbwZ+Hvgd5Juz9NOAj4PXCrpSGAhcOgQxGZmVildTwIRcSPN\nRyXt3c1YbGRwk5TZwA3p6CCzTnGTlNnA+LIRZmYV5iRgZlZhbg4y6xD3TdjqyEnArIPcN2GrGzcH\nmZlVmJOAmVmFOQmYmVWYk4CZWYU5CZiZVZiTgJlZhTkJmJlVmJOAmVmFOQmYmVWYk4CZWYU5CZiZ\nVZiTgJlZhTkJmJlVmJOAmVmFOQmYmVWYk4CZWYU5CZiZVZiTgJlZhTkJmJlVmJOAmVmF+UbzZiOI\npI6sJyI6sh4b/pwEzEaYXnqH9PW2enFzkJlZhQ2rJCBpX0l3SbpX0qeHOh4zs5Fu2DQHSRoFfA3Y\n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\n",
+      "text/plain": [
+       "<matplotlib.figure.Figure at 0x7f90d451c810>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "%matplotlib inline\n",
+    "import numpy as np\n",
+    "import matplotlib.pyplot as plt\n",
+    "\n",
+    "N = 10\n",
+    "index = np.arange(N)  \n",
+    "bar_width = 0.5\n",
+    "\n",
+    "plt.bar(index, activeNASAPlantTop10, bar_width,\n",
+    "                 color='purple')\n",
+    "plt.xlabel('Stats')\n",
+    "plt.ylabel('Active Plant Numbers')\n",
+    "plt.title('The Number of Active NASA Facilities in US States')\n",
+    "plt.xticks(index + bar_width, statesTop10)\n",
+    "plt.show()"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 2",
+   "language": "python",
+   "name": "python2"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 2
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython2",
+   "version": "2.7.9"
+  },
+  "name": "cds_ax_spark.ipynb"
+ },
+ "nbformat": 4,
+ "nbformat_minor": 0
+}
