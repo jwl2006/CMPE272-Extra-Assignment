@@ -10,9 +10,8 @@ If anything is not working, please contact me at wanghao313@gmail.com
 
 
 Instructions
-1.	Data Retrieval
-	The dataset is the NASA public dataset, and can be accessed 
-at https://data.nasa.gov/view/scmi-np9r
+1.  Data Retrieval
+The dataset is the NASA public dataset, and can be accessed at https://data.nasa.gov/view/scmi-np9r
 
 2.  Data preprocessing
 Since each entry of the data is separated by two different lines. 
@@ -26,5 +25,5 @@ Please use this dataset for the NOTEBOOK operation.	The script to process the RA
  I created the instance NoteBook (python) for data analysis. 
 I uploaded the complete NoteBook in the folder, which name is  NASASpark.ipynb .
 
-5.	 Run the NoteBook to demo the analysis
+5.  Run the NoteBook to demo the analysis
 After loaded the cleaned dataset into the objectstore and NoteBook, you should be able to run the program in the NoteBook, and get the analysis results. The Notebook are also documented, so you can understand what each step does, and get the results.
