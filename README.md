@@ -1,6 +1,11 @@
-# CMPE272-Extra-Assignment-
 
-							READ ME
+	#Spark Analysis of NASA Data Report
+		Hao Wang     010702263
+
+					
+
+Spark has become the first choice for big data analyst especially from this year due to its in memory calculation. It was estimated that Spark is 100 times faster than Hadoop for large scale dataset. In this practice, I analyzed the NASA public dataset using Spark Service on the IBM bluemix cloud. I used Python and Notebook as the tool to filter the data, do the Map Reduce, and then visualized the data using pySpark API. The following are the Steps for the Spark analysis.
+
 The instructions for running the Notebook is in the below.
 
 But the most important thing is:
